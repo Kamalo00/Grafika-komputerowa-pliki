@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Animacja SVG </title>
+    <style>
+        body { background-color: #EEEEEE; font-family: sans-serif; }
+        #svg-container { border: 2px solid black; background-color: white; width: 800px; height: 600px; }
+        .bar { 
+            fill: none; 
+            stroke: red; 
+            stroke-width: 0.25; 
+        }
+        .shape-outline, .spoke { 
+            fill: none; 
+            stroke: black; 
+            stroke-width: 0.01; 
+        }
+    </style>
+</head>
+<body>
+
+<h3>Animacja (SVG)</h3>
+
+<p><label><input type="checkbox" id="animateCheck"><b> Uruchom animacje</b></label></p>
+
+<div id="svg-container">
+    <svg id="mysvg" width="800" height="600" viewBox="-4 -3 8 6" preserveAspectRatio="xMidYMid">
+        
+        <defs>
+            <g id="spoked-wheel">
+                <polygon class="shape-outline" points="0.5,0 0.405,0.294 0.155,0.476 -0.155,0.476 -0.405,0.294 -0.5,0 -0.405,-0.294 -0.155,-0.476 0.155,-0.476 0.405,-0.294" />
+                <line class="spoke" x1="0" y1="0" x2="0.5" y2="0" />
+                <line class="spoke" x1="0" y1="0" x2="0.405" y2="0.294" />
+                <line class="spoke" x1="0" y1="0" x2="0.155" y2="0.476" />
+                <line class="spoke" x1="0" y1="0" x2="-0.155" y2="0.476" />
+                <line class="spoke" x1="0" y1="0" x2="-0.405" y2="0.294" />
+                <line class="spoke" x1="0" y1="0" x2="-0.5" y2="0" />
+                <line class="spoke" x1="0" y1="0" x2="-0.405" y2="-0.294" />
+                <line class="spoke" x1="0" y1="0" x2="-0.155" y2="-0.476" />
+                <line class="spoke" x1="0" y1="0" x2="0.155" y2="-0.476" />
+                <line class="spoke" x1="0" y1="0" x2="0.405" y2="-0.294" />
+            </g>
+        </defs>
+
+        <g id="world" transform="translate(0, 0.8) scale(1, -1)">
+            
+            <g id="swing-blue-group" transform="translate(0, 0)">
+                <g class="moving-part" transform="rotate(-15)">
+                    <use href="#spoked-wheel" transform="translate(-1.45, 0)" class="wheel-left" />
+                    <use href="#spoked-wheel" transform="translate(1.45, 0)" class="wheel-right" />
+                    <line class="bar" x1="-1.5" y1="0" x2="1.5" y2="0" />
+                </g>
+            </g>
+
+            <g id="swing-purple-group" transform="translate(-2, 2.5) scale(0.8, 0.9)">
+                <g class="moving-part" transform="rotate(-15)">
+                    <use href="#spoked-wheel" transform="translate(-1.45, 0)" class="wheel-left" />
+                    <use href="#spoked-wheel" transform="translate(1.45, 0)" class="wheel-right" />
+                    <line class="bar" x1="-1.5" y1="0" x2="1.5" y2="0" />
+                </g>
+            </g>
+
+            <g id="swing-green-group" transform="translate(2, 2.5) scale(0.6, 0.6)">
+                <g class="moving-part" transform="rotate(-15)">
+                    <use href="#spoked-wheel" transform="translate(-1.45, 0)" class="wheel-left" />
+                    <use href="#spoked-wheel" transform="translate(1.45, 0)" class="wheel-right" />
+                    <line class="bar" x1="-1.5" y1="0" x2="1.5" y2="0" />
+                </g>
+            </g>
+
+            <polygon points="-0.25,-1.5 0.25,-1.5 0,0" fill="blue" transform="translate(0, 0)" />
+            <polygon points="-0.25,-1.5 0.25,-1.5 0,0" fill="purple" transform="translate(-2, 2.5) scale(0.8, 0.9)" />
+            <polygon points="-0.25,-1.5 0.25,-1.5 0,0" fill="green" transform="translate(2, 2.5) scale(0.6, 0.6)" />
+
+        </g>
+    </svg>
+</div>
+
+<script>
+    const animateCheck = document.getElementById("animateCheck");
+    let frameNumber = 0;
+    let running = false;
+
+    function update() {
+        if (!running) return;
+        frameNumber++;
+
+        const wheelRotation = frameNumber * 0.75;
+
+        document.querySelectorAll(".moving-part").forEach(part => {
+            const wheelL = part.querySelector(".wheel-left");
+            const wheelR = part.querySelector(".wheel-right");
+            wheelL.setAttribute("transform", `translate(-1.45, 0) rotate(${-wheelRotation})`);
+            wheelR.setAttribute("transform", `translate(1.45, 0) rotate(${wheelRotation})`);
+        });
+
+        requestAnimationFrame(update);
+    }
+
+    animateCheck.onchange = function() {
+        running = this.checked;
+        if (running) requestAnimationFrame(update);
+    };
+</script>
+
+</body>
+</html>
