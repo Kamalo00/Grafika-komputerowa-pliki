@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Zadanie_threejs – Karuzela</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; font-family: sans-serif; color: #fff; }
+  #ui {
+    padding: 8px 16px;
+    background: #111;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    border-bottom: 1px solid #333;
+  }
+  #ui h2 { font-size: 18px; }
+  #ui label { font-size: 14px; cursor: pointer; }
+  #ui span   { font-size: 13px; color: #aaa; }
+  #message   { color: #f55; padding: 4px 16px; min-height: 20px; font-size: 13px; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <h2>Zadanie_threejs</h2>
+  <label><input type="checkbox" id="animateCheckbox"> <b>Animate</b></label>
+  <span>Użyj myszy do obracania modelu.</span>
+</div>
+<div id="message"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
+
+// Zmienne globalne
+let renderer, scene, camera, controls;
+let animating = false;
+let carouselGroup;   
+let roofGroup;       
+let earthMesh;       
+
+const mixers = [];
+const clock = new THREE.Clock();
+
+// Konfiguracja karuzeli
+const NUM_SIDES  = 6;
+const FLOOR_R    = 13.5;
+const POLE_R     = 11;
+const NUM_HORSES = 5;
+const HORSE_COLORS = [
+  0xFF9900,   // pomarańczowy
+  0x00FF00,   // zielony
+  0xFFFFFF,   // biały 
+  0x0000FF,   // niebieski
+  0xB45F06    // brązowy
+];
+
+// Render / Scena / Kamera
+function init() {
+  const uiHeight = document.getElementById('ui').offsetHeight +
+                   document.getElementById('message').offsetHeight;
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight - uiHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  document.body.appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+
+  camera = new THREE.PerspectiveCamera(
+    30,
+    renderer.domElement.width / renderer.domElement.height,
+    0.1,
+    300
+  );
+  camera.position.set(0, 16, 50);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping  = true;   
+  controls.dampingFactor  = 0.08;
+  controls.enablePan      = false;
+  controls.minDistance    = 20;
+  controls.maxDistance    = 120;
+  controls.addEventListener('change', () => { if (!animating) render(); });
+
+  document.getElementById('animateCheckbox').onchange = doAnimateCheckbox;
+  // Resize 
+  window.addEventListener('resize', onResize);
+
+  buildScene();
+  render();
+}
+
+// Scena + Światło
+function buildScene() {
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+  sun.position.set(10, 30, 20);
+  sun.castShadow = true;
+  scene.add(sun);
+
+  const ptLight = new THREE.PointLight(0x7722ff, 2.0, 50);
+  ptLight.position.set(0, 5, 0);
+  scene.add(ptLight);
+
+  carouselGroup = new THREE.Group();
+  scene.add(carouselGroup);
+
+  roofGroup = new THREE.Group();
+  scene.add(roofGroup);
+
+  const floorMat = new THREE.MeshPhongMaterial({color: 0x7700cc, specular: 0x440088, shininess: 40});
+
+  const floorMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(FLOOR_R, FLOOR_R, 0.7, NUM_SIDES),
+    floorMat
+  );
+  floorMesh.rotation.y   = Math.PI / NUM_SIDES;
+  floorMesh.receiveShadow = true;
+  carouselGroup.add(floorMesh);
+
+  const rimMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(FLOOR_R + 0.15, FLOOR_R + 0.15, 0.22, NUM_SIDES),
+    new THREE.MeshPhongMaterial({ color: 0x9900ff, shininess: 60 })
+  );
+  rimMesh.rotation.y = Math.PI / NUM_SIDES;
+  rimMesh.position.y = -0.22;
+  carouselGroup.add(rimMesh);
+
+  //Kula Ziemii na środku karuzeli
+  const tLoader = new THREE.TextureLoader();
+
+  const earthTex = tLoader.load(
+    'https://assets.science.nasa.gov/dynamicimage/assets/science/cds/3d/resources/image/earth-(a)/preview.webp?w=2048',
+    render   
+  );
+  earthMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(3.7, 48, 48),
+    new THREE.MeshPhongMaterial({
+      map: earthTex, specular: 0x224422, shininess: 20
+    })
+  );
+  earthMesh.position.y = 4.2;
+  scene.add(earthMesh); 
+
+  //Słupy na karuzeli
+  const poleMat = new THREE.MeshPhongMaterial({
+    color: 0xd4a020, specular: 0xffffff, shininess: 120
+  });
+  const poleGeo = new THREE.CylinderGeometry(0.28, 0.28, 8, 24);
+
+  for (let i = 0; i < NUM_HORSES; i++) {
+    const angle = (i / NUM_HORSES) * Math.PI * 2;
+    const pole  = new THREE.Mesh(poleGeo, poleMat);
+    pole.position.set(
+      POLE_R * Math.sin(angle),
+      4.35,
+      POLE_R * Math.cos(angle)
+    );
+    pole.castShadow = true;
+    carouselGroup.add(pole);
+  }
+
+  // Dach karuzeli
+  const ringMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(FLOOR_R - 0.3, FLOOR_R - 0.3, 0.35, NUM_SIDES),
+    new THREE.MeshPhongMaterial({ color: 0x7700cc, shininess: 30 })
+  );
+  ringMesh.rotation.y = Math.PI / NUM_SIDES;
+  ringMesh.position.y = 8.3;
+  roofGroup.add(ringMesh);
+
+  // Dach karuzeli (stożek) 
+  const roofMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0, FLOOR_R - 0.4, 3.8, NUM_SIDES, 1, false),
+    new THREE.MeshPhongMaterial({
+      color: 0x6600bb, specular: 0x330055, shininess: 20,
+      side: THREE.DoubleSide
+    })
+  );
+  roofMesh.rotation.y = Math.PI / NUM_SIDES;
+  roofMesh.position.y = 10.35;
+  roofGroup.add(roofMesh);
+
+//Konie
+  const loader = new GLTFLoader();
+
+  for (let hi = 0; hi < NUM_HORSES; hi++) {
+    const color = HORSE_COLORS[hi];
+    const angle = (hi / NUM_HORSES) * Math.PI * 2;
+    const hx    = POLE_R * Math.sin(angle);
+    const hz    = POLE_R * Math.cos(angle);
+
+    loader.load(
+      'https://threejs.org/examples/models/gltf/Horse.glb',
+      (gltf) => {
+        const horse = gltf.scene;
+
+        horse.traverse((node) => {
+          if (node.isMesh) {
+            node.material = new THREE.MeshPhongMaterial({
+              color,
+              specular: 0x222222,
+              shininess: 40
+            });
+            node.castShadow = true;
+          }
+        });
+
+        horse.scale.setScalar(0.032);
+        horse.position.set(hx, 1.0, hz);
+        horse.rotation.y = -angle + Math.PI * 0.5;
+
+        carouselGroup.add(horse);
+
+        if (gltf.animations?.length > 0) {
+          const mixer = new THREE.AnimationMixer(horse);
+          mixer.clipAction(gltf.animations[0]).play();
+          mixers.push(mixer);
+        }
+
+        render();
+      },
+      undefined,
+      (err) => {
+        document.getElementById('message').textContent =
+          'Błąd ładowania modelu konia: ' + err.message;
+      }
+    );
+  }
+
+}
+
+//Pętla animacji + render
+function render() {
+  renderer.render(scene, camera);
+}
+
+function updateForFrame() {
+  const delta = clock.getDelta();  
+
+  carouselGroup.rotation.y += delta * 0.55;
+  roofGroup.rotation.y     += delta * 0.55;
+
+  earthMesh.rotation.y += delta * 0.12;
+
+  for (const mx of mixers) mx.update(delta);
+}
+
+function doAnimateCheckbox() {
+  const run = document.getElementById('animateCheckbox').checked;
+  if (run !== animating) {
+    animating = run;
+    if (animating) requestAnimationFrame(doFrame);
+  }
+}
+
+function doFrame() {
+  if (!animating) return;
+  updateForFrame();
+  controls.update(); 
+  render();
+  requestAnimationFrame(doFrame);
+}
+
+//Resize
+function onResize() {
+  const uiH = document.getElementById('ui').offsetHeight +
+              document.getElementById('message').offsetHeight;
+  const w = window.innerWidth;
+  const h = window.innerHeight - uiH;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  render();
+}
+
+init();
+
+</script>
+</body>
+</html>
