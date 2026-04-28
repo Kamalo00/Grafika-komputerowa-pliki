@@ -49,7 +49,6 @@ function init() {
 }
 
 function setupLights(s) {
-  // Poprawiono: 0xffffff to biały kolor
   const ambient = new THREE.AmbientLight(0xffffff, 0.6);
   s.add(ambient);
   const direct = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -58,12 +57,11 @@ function setupLights(s) {
 }
 function buildHetman() {
   const s = new THREE.Scene();
-  s.background = new THREE.Color(0x1a1a1a); // Ciemne tło dla lepszej widoczności białej figury
+  s.background = new THREE.Color(0x1a1a1a); 
   setupLights(s);
 
-  // 1. Definicja profilu (x = promień, y = wysokość)
   const points = [
-  // PODSTAWA
+  // Podstawa Pionka
   new THREE.Vector2(0.00, 0.00),
   new THREE.Vector2(1.40, 0.00),
   new THREE.Vector2(1.50, 0.15),
@@ -71,20 +69,20 @@ function buildHetman() {
   new THREE.Vector2(1.20, 0.55),
   new THREE.Vector2(0.90, 0.75),
 
-  // TRZON (talia)
+  // Trzon Pionka
   new THREE.Vector2(0.65, 1.20),
   new THREE.Vector2(0.60, 1.60),
   new THREE.Vector2(0.65, 2.00),
 
-  // SZYJA I KOŁNIERZ
+  // Kołnierz Pionka
   new THREE.Vector2(0.55, 2.30),
   new THREE.Vector2(0.58, 2.50),
-  new THREE.Vector2(1.30, 2.70),   // ← szeroki kołnierz
+  new THREE.Vector2(1.30, 2.70),  
   new THREE.Vector2(1.35, 2.80),
   new THREE.Vector2(0.90, 2.95),
   new THREE.Vector2(0.70, 3.10),
 
-  // GŁOWA (bułka)
+  // Głowa Pionka
   new THREE.Vector2(0.65, 3.25),
   new THREE.Vector2(0.85, 3.55),
   new THREE.Vector2(0.90, 3.75),
@@ -96,22 +94,19 @@ function buildHetman() {
   new THREE.Vector2(0.00, 4.65),
 ];
 
-  // 2. Tworzenie geometrii (64 segmenty dla gładkości)
   const geom = new THREE.LatheGeometry(points, 64);
-  geom.computeVertexNormals(); // Wymagane dla poprawnego cieniowania
+  geom.computeVertexNormals();
 
-  // 3. Materiał - Biały, plastikowy/błyszczący
   const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,       // Kolor: Biały
-    metalness: 0.1,        // Niska metaliczność
-    roughness: 1.5,        // Gładka powierzchnia
+    color: 0xffffff,       
+    metalness: 0.1,        
+    roughness: 1.5,       
     side: THREE.DoubleSide
   });
 
   const mesh = new THREE.Mesh(geom, material);
   s.add(mesh);
 
-  // Dodanie pomocniczej siatki (opcjonalnie)
   const grid = new THREE.GridHelper(10, 10);
   s.add(grid);
 
