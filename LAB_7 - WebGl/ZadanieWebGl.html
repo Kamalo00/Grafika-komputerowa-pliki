@@ -12,25 +12,13 @@
             display: block;
         }
     </style>
-
-    <!--
-        Sterowanie klawiaturą:
-        SPACJA  - pauza / wznowienie animacji
-        C       - włącz/wyłącz losowe kolory punktów
-        W       - zmień kształt punktów (pytanie o liczbę boków)
-        K       - włącz/wyłącz tryb linii (spanning tree)
-        1       - styl: kwadrat (domyślny WebGL POINTS)
-        2       - styl: dysk (koło)
-        3       - styl: wielokąt foremny (liczba boków ustawiana przez W)
-        4       - styl: wielokąt z zanikaniem alpha od środka do krawędzi
-    -->
+    
     <div id="info" style="text-align:center; color:white; background-color:rgb(60,100,170); padding:4px;">
         Użyj klawiszy aby:<br>
         SPACJA – pauza &nbsp;|&nbsp; C – kolory &nbsp;|&nbsp; W – wierzchołki &nbsp;|&nbsp; K – linie &nbsp;|&nbsp;
         1 – kwadrat &nbsp;|&nbsp; 2 – dysk &nbsp;|&nbsp; 3 – wielokąt &nbsp;|&nbsp; 4 – zanikanie
     </div>
 
-    <!-- ===================== VERTEX SHADER ===================== -->
     <script type="x-shader/x-vertex" id="vshader-source">
         attribute vec2 a_coords;   // pozycja wierzchołka w pikselach
         attribute vec3 a_color;    // kolor wierzchołka (RGB)
@@ -104,7 +92,6 @@
         }
     </script>
 
-    <!-- ===================== JAVASCRIPT ===================== -->
     <script>
         "use strict";
 
