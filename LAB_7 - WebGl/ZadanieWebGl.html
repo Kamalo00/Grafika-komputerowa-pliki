@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<html>
+<head>
+    <title>Zadanie WebGl / GLSL</title>
+    <style>
+        html, body {
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+
+    <!--
+        Sterowanie klawiaturą:
+        SPACJA  - pauza / wznowienie animacji
+        C       - włącz/wyłącz losowe kolory punktów
+        W       - zmień kształt punktów (pytanie o liczbę boków)
+        K       - włącz/wyłącz tryb linii (spanning tree)
+        1       - styl: kwadrat (domyślny WebGL POINTS)
+        2       - styl: dysk (koło)
+        3       - styl: wielokąt foremny (liczba boków ustawiana przez W)
+        4       - styl: wielokąt z zanikaniem alpha od środka do krawędzi
+    -->
+    <div id="info" style="text-align:center; color:white; background-color:rgb(60,100,170); padding:4px;">
+        Użyj klawiszy aby:<br>
+        SPACJA – pauza &nbsp;|&nbsp; C – kolory &nbsp;|&nbsp; W – wierzchołki &nbsp;|&nbsp; K – linie &nbsp;|&nbsp;
+        1 – kwadrat &nbsp;|&nbsp; 2 – dysk &nbsp;|&nbsp; 3 – wielokąt &nbsp;|&nbsp; 4 – zanikanie
+    </div>
+
+    <!-- ===================== VERTEX SHADER ===================== -->
+    <script type="x-shader/x-vertex" id="vshader-source">
+        attribute vec2 a_coords;   // pozycja wierzchołka w pikselach
+        attribute vec3 a_color;    // kolor wierzchołka (RGB)
+
+        uniform float u_width;
+        uniform float u_height;
+        uniform float u_pointSize;
+
+        varying vec3 v_color;      // przekazanie koloru do fragment shadera
+
+        void main() {
+            float x = a_coords.x / u_width  * 2.0 - 1.0;
+            float y = 1.0 - a_coords.y / u_height * 2.0;
+            gl_Position  = vec4(x, y, 0.0, 1.0);
+            gl_PointSize = u_pointSize;
+            v_color = a_color;
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="fshader-source">
+        #ifdef GL_FRAGMENT_PRECISION_HIGH
+            precision highp float;
+        #else
+            precision mediump float;
+        #endif
+
+        varying vec3 v_color;
+        uniform int  u_style;  
+        uniform int  u_sides;   
+
+        const float PI = 3.14159265;
+
+        float insidePolygon(vec2 p, float n, float radius) {
+            float angle = atan(p.y, p.x);
+            float sector = PI * 2.0 / n;
+            float a = mod(angle, sector) - sector * 0.5;
+            float dist = cos(a) * length(p);
+            return dist < radius ? 1.0 : 0.0;
+        }
+
+        void main() {
+            vec2  coord  = gl_PointCoord - vec2(0.5); 
+            float dist   = length(coord);            
+
+            if (u_style == 1) {
+                gl_FragColor = vec4(v_color, 1.0);
+
+            } else if (u_style == 2) {
+                if (dist > 0.5) discard;
+                gl_FragColor = vec4(v_color, 1.0);
+
+            } else if (u_style == 3) {
+                float n = float(u_sides);
+                if (insidePolygon(coord, n, 0.45) < 0.5) discard;
+                gl_FragColor = vec4(v_color, 1.0);
+
+            } else if (u_style == 4) {
+                float n     = float(u_sides);
+                float angle = atan(coord.y, coord.x);
+                float sector = PI * 2.0 / n;
+                float a     = mod(angle, sector) - sector * 0.5;
+                float edge  = cos(a) * 0.45; 
+                float t     = dist / max(edge, 0.001); 
+                if (t > 1.0) discard;
+                float alpha = 1.0 - t; 
+                gl_FragColor = vec4(v_color, alpha);
+
+            } else {
+                gl_FragColor = vec4(v_color, 1.0);
+            }
+        }
+    </script>
+
+    <!-- ===================== JAVASCRIPT ===================== -->
+    <script>
+        "use strict";
+
+        var canvas, gl;
+
+        var u_width_loc, u_height_loc, u_pointSize_loc;
+        var u_style_loc, u_sides_loc;
+        var a_coords_loc, a_color_loc;
+
+        var a_coords_buffer, a_color_buffer, line_buffer;
+
+        var POINT_COUNT = 200;
+        var POINT_SIZE  = 32;
+
+        var positions  = new Float32Array(2 * POINT_COUNT);
+        var velocities = new Float32Array(2 * POINT_COUNT);
+        var colors     = new Float32Array(3 * POINT_COUNT);  
+
+        var isRunning     = true;
+        var isColorRandom = false;
+        var isDrawLines   = false;
+        var pointStyle    = 1;      
+        var nSides        = 6;      
+
+        function render() {
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            if (isDrawLines) {
+                var linePos = buildLinePositions();
+                gl.bindBuffer(gl.ARRAY_BUFFER, line_buffer);
+                gl.bufferData(gl.ARRAY_BUFFER, linePos, gl.STREAM_DRAW);
+                gl.vertexAttribPointer(a_coords_loc, 2, gl.FLOAT, false, 0, 0);
+
+                if (isColorRandom) {
+                    gl.bindBuffer(gl.ARRAY_BUFFER, a_color_buffer);
+                    gl.enableVertexAttribArray(a_color_loc);
+                    gl.vertexAttribPointer(a_color_loc, 3, gl.FLOAT, false, 0, 0);
+                } else {
+                    gl.disableVertexAttribArray(a_color_loc);
+                    gl.vertexAttrib3f(a_color_loc, 1.0, 0.0, 0.0); 
+                }
+
+                gl.uniform1i(u_style_loc, 1); 
+                gl.drawArrays(gl.LINES, 0, linePos.length / 2);
+
+            } else {
+                gl.bindBuffer(gl.ARRAY_BUFFER, a_coords_buffer);
+                gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STREAM_DRAW);
+                gl.vertexAttribPointer(a_coords_loc, 2, gl.FLOAT, false, 0, 0);
+
+                if (isColorRandom) {
+                    gl.bindBuffer(gl.ARRAY_BUFFER, a_color_buffer);
+                    gl.enableVertexAttribArray(a_color_loc);
+                    gl.vertexAttribPointer(a_color_loc, 3, gl.FLOAT, false, 0, 0);
+                } else {
+                    gl.disableVertexAttribArray(a_color_loc);
+                    gl.vertexAttrib3f(a_color_loc, 1.0, 0.0, 0.0); 
+                }
+
+                gl.uniform1i(u_style_loc, pointStyle);
+                gl.uniform1i(u_sides_loc, nSides);
+                gl.drawArrays(gl.POINTS, 0, POINT_COUNT);
+            }
+        }
+
+        function buildLinePositions() {
+            var arr = new Float32Array(4 * (POINT_COUNT - 1));
+            for (var i = 0; i < POINT_COUNT - 1; i++) {
+                arr[4*i]   = positions[2*i];
+                arr[4*i+1] = positions[2*i+1];
+                arr[4*i+2] = positions[2*(i+1)];
+                arr[4*i+3] = positions[2*(i+1)+1];
+            }
+            return arr;
+        }
+
+        function updateFrame() {
+            for (var i = 0; i < POINT_COUNT; i++) {
+                positions[2*i]   += velocities[2*i];
+                positions[2*i+1] += velocities[2*i+1];
+
+                if ((positions[2*i]   < 0 && velocities[2*i]   < 0) ||
+                    (positions[2*i]   > canvas.width  && velocities[2*i]   > 0)) {
+                    velocities[2*i] = -velocities[2*i];
+                }
+                if ((positions[2*i+1] < 0 && velocities[2*i+1] < 0) ||
+                    (positions[2*i+1] > canvas.height && velocities[2*i+1] > 0)) {
+                    velocities[2*i+1] = -velocities[2*i+1];
+                }
+            }
+        }
+
+        function doKey(evt) {
+            var code = evt.key;
+
+            if (code === " ") {
+                isRunning = !isRunning;
+                return;
+            }
+            if (code === "c" || code === "C") {
+                isColorRandom = !isColorRandom;
+                if (isColorRandom) randomizeColors();
+                return;
+            }
+            if (code === "w" || code === "W") {
+                var num = prompt("Podaj liczbę wierzchołków wielokąta:", nSides);
+                if (num !== null) {
+                    nSides = Math.max(3, parseInt(num) || 3);
+                    gl.uniform1i(u_sides_loc, nSides);
+                }
+                return;
+            }
+            if (code === "k" || code === "K") {
+                isDrawLines = !isDrawLines;
+                return;
+            }
+            if (code === "1") { pointStyle = 1; return; }
+            if (code === "2") { pointStyle = 2; return; }
+            if (code === "3") { pointStyle = 3; return; }
+            if (code === "4") { pointStyle = 4; return; }
+        }
+
+        function doMouseDown(evt) {
+            if (evt.shiftKey) {
+                createData();
+                return;
+            }
+            var r = evt.target.getBoundingClientRect();
+            var mx = evt.clientX - r.left;
+            var my = evt.clientY - r.top;
+            for (var i = 0; i < POINT_COUNT; i++) {
+                var dx   = mx - positions[2*i];
+                var dy   = my - positions[2*i+1];
+                var dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 0.001) continue;
+                var spd  = Math.sqrt(velocities[2*i]*velocities[2*i] + velocities[2*i+1]*velocities[2*i+1]);
+                velocities[2*i]   = spd * dx / dist;
+                velocities[2*i+1] = spd * dy / dist;
+            }
+        }
+
+        function randomizeColors() {
+            for (var i = 0; i < colors.length; i++) colors[i] = Math.random();
+            gl.bindBuffer(gl.ARRAY_BUFFER, a_color_buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+        }
+
+        function createData() {
+            for (var i = 0; i < 3 * POINT_COUNT; i++) colors[i] = Math.random();
+
+            for (var i = 0; i < POINT_COUNT; i++) {
+                positions[2*i]   = canvas.width  / 2;
+                positions[2*i+1] = canvas.height / 2;
+                var speed = 2 + 4 * Math.random();
+                var angle = 2 * Math.PI * Math.random();
+                velocities[2*i]   = speed * Math.cos(angle);
+                velocities[2*i+1] = speed * Math.sin(angle);
+            }
+        }
+
+        function initGL() {
+            gl.viewport(0, 0, canvas.width, canvas.height);
+            gl.clearColor(0.2, 0.2, 0.2, 1.0);
+
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+            function compileShader(type, sourceId) {
+                var sh = gl.createShader(type);
+                gl.shaderSource(sh, document.getElementById(sourceId).text);
+                gl.compileShader(sh);
+                if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+                    console.error("Shader error:", gl.getShaderInfoLog(sh));
+                    return null;
+                }
+                return sh;
+            }
+
+            var vsh = compileShader(gl.VERTEX_SHADER,   "vshader-source");
+            var fsh = compileShader(gl.FRAGMENT_SHADER, "fshader-source");
+
+            var prog = gl.createProgram();
+            gl.attachShader(prog, vsh);
+            gl.attachShader(prog, fsh);
+            gl.linkProgram(prog);
+            if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+                console.error("Link error:", gl.getProgramInfoLog(prog));
+                return;
+            }
+            gl.useProgram(prog);
+
+            a_coords_loc   = gl.getAttribLocation(prog,  "a_coords");
+            a_color_loc    = gl.getAttribLocation(prog,  "a_color");
+            u_width_loc    = gl.getUniformLocation(prog, "u_width");
+            u_height_loc   = gl.getUniformLocation(prog, "u_height");
+            u_pointSize_loc= gl.getUniformLocation(prog, "u_pointSize");
+            u_style_loc    = gl.getUniformLocation(prog, "u_style");
+            u_sides_loc    = gl.getUniformLocation(prog, "u_sides");
+
+            a_coords_buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, a_coords_buffer);
+            gl.enableVertexAttribArray(a_coords_loc);
+
+            a_color_buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, a_color_buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+            gl.disableVertexAttribArray(a_color_loc);
+            gl.vertexAttrib3f(a_color_loc, 1.0, 0.0, 0.0);
+
+            line_buffer = gl.createBuffer();
+
+            gl.uniform1f(u_width_loc,     canvas.width);
+            gl.uniform1f(u_height_loc,    canvas.height);
+            gl.uniform1f(u_pointSize_loc, POINT_SIZE);
+            gl.uniform1i(u_style_loc,     pointStyle);
+            gl.uniform1i(u_sides_loc,     nSides);
+        }
+
+        function init() {
+            try {
+                canvas = document.createElement("canvas");
+                document.body.appendChild(canvas);
+                canvas.width  = window.innerWidth;
+                canvas.height = window.innerHeight;
+                gl = canvas.getContext("webgl");
+                if (!gl) throw "Przeglądarka nie obsługuje WebGL";
+            } catch(e) {
+                document.body.innerHTML = "<b>Błąd: " + e + "</b>";
+                return;
+            }
+
+            createData();
+            initGL();
+
+            canvas.addEventListener("mousedown", doMouseDown);
+            window.addEventListener("keydown",   doKey);
+            window.addEventListener("resize", function() {
+                canvas.width  = window.innerWidth;
+                canvas.height = window.innerHeight;
+                gl.viewport(0, 0, canvas.width, canvas.height);
+                gl.uniform1f(u_width_loc,  canvas.width);
+                gl.uniform1f(u_height_loc, canvas.height);
+            });
+
+            var lastTime = 0;
+            function doFrame(time) {
+                if (isRunning && lastTime !== 0) {
+                    updateFrame();
+                    render();
+                } else if (!isRunning) {
+                    render(); 
+                } else {
+                    render();
+                }
+                lastTime = time;
+                requestAnimationFrame(doFrame);
+            }
+            requestAnimationFrame(doFrame);
+        }
+
+        window.addEventListener("load", init);
+    </script>
+</head>
+<body></body>
+</html>
